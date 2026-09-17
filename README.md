@@ -7,10 +7,9 @@ mission at the Nagoya 2026 Asian Games:
    log a finding: photo (camera or gallery), date/time, venue, functional area,
    description, and relevance to 2030 planning (High/Medium/Low). Each finding
    gets a unique reference number (`NGY26-00001`, `NGY26-00002`, …).
-2. **Reporting dashboard** (`/dashboard`) — a Google Maps view with one pin per
-   venue (colored by the venue's highest-relevance finding, sized by finding
-   count), summary charts by venue / functional area / relevance, a
-   click-through from map pin → findings list → finding detail, and Excel/PDF
+2. **Reporting dashboard** (`/dashboard`) — KPI tiles, a venue filter over a
+   findings list (click any row to see the full detail, including the photo),
+   summary charts by venue / functional area / relevance, and Excel/PDF
    export of the raw data.
 
 The whole site sits behind a single shared passcode (`SITE_PASSCODE`) — there
@@ -21,7 +20,6 @@ field observation mission.
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
 - Supabase (Postgres for the `findings` table, Storage for photos)
-- Google Maps JavaScript API (`@react-google-maps/api`) for the dashboard map
 - Recharts for charts, ExcelJS for `.xlsx` export, jsPDF for `.pdf` export
 
 ## Environment variables
@@ -32,7 +30,6 @@ Copy `.env.example` to `.env.local` and fill in:
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | From the Supabase project settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Public anon key — RLS policies restrict it to insert/select on `findings` and the `finding-photos` bucket |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | For the map | Billing-enabled Google Cloud project with the Maps JavaScript API enabled. Without it, the dashboard shows a placeholder in place of the map; everything else still works |
 | `SITE_PASSCODE` | Recommended | Shared passcode for the whole site. Leave blank (with `SESSION_SECRET`) to disable the gate entirely |
 | `SESSION_SECRET` | Recommended | Random string used to sign the session cookie (e.g. `openssl rand -hex 32`) |
 
@@ -43,12 +40,14 @@ npm install
 npm run dev
 ```
 
-## Venue coordinates
+## Venue list
 
-`src/lib/venues.ts` holds a best-effort city/site-level coordinate for each of
-the official venue list's ~72 entries, used to place map pins. These are not
-surveyed venue entrances — update the `lat`/`lng` values there as exact venue
-GPS coordinates become available from the OCOG venue team.
+`src/lib/venues.ts` holds the official ~72-venue list (alphabetized) used by
+the submission form's venue dropdown. It also carries a best-effort city/site
+`lat`/`lng` per venue, stored on each finding but not currently rendered
+anywhere in the UI (the dashboard's map view was dropped in favor of a
+filterable findings list). Those coordinates are kept in the schema in case a
+map view is reintroduced later.
 
 ## Database schema
 

@@ -12,7 +12,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@react-google-maps/api": "^2.20.8",
     "@supabase/supabase-js": "^2.116.0",
     "date-fns": "^4.4.0",
     "exceljs": "^4.4.0",
@@ -25,7 +24,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/google.maps": "^3.66.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

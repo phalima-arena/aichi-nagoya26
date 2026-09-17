@@ -7,18 +7,19 @@ import type { Finding, Relevance } from "@/lib/types";
 import { RELEVANCE_LEVELS } from "@/lib/types";
 import { CHART_HUES } from "@/lib/colors";
 import { KpiRow } from "@/components/dashboard/KpiRow";
-import { FindingsMap } from "@/components/dashboard/FindingsMap";
 import { CountBarChart, RelevanceBarChart } from "@/components/dashboard/Charts";
 import { FindingsList } from "@/components/dashboard/FindingsList";
 import { FindingDetailModal } from "@/components/dashboard/FindingDetailModal";
 import { exportFindingsToExcel, exportFindingsToPdf } from "@/lib/export";
 import LogoutButton from "@/components/LogoutButton";
 
+const ALL_VENUES = "__all__";
+
 export default function DashboardPage() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
+  const [venueFilter, setVenueFilter] = useState<string>(ALL_VENUES);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
 
@@ -61,9 +62,14 @@ export default function DashboardPage() {
 
   const relevanceChartData = RELEVANCE_LEVELS.map((level) => ({ name: level, count: byRelevance[level] }));
 
-  const venueFindings = useMemo(
-    () => (selectedVenue ? findings.filter((f) => f.venue === selectedVenue) : []),
-    [findings, selectedVenue]
+  const venueOptions = useMemo(
+    () => [...byVenue].sort((a, b) => a.name.localeCompare(b.name)),
+    [byVenue]
+  );
+
+  const filteredFindings = useMemo(
+    () => (venueFilter === ALL_VENUES ? findings : findings.filter((f) => f.venue === venueFilter)),
+    [findings, venueFilter]
   );
 
   async function handleExport(type: "excel" | "pdf") {
@@ -121,23 +127,29 @@ export default function DashboardPage() {
         <>
           <KpiRow total={findings.length} byRelevance={byRelevance} />
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <div className="h-[420px]">
-              <FindingsMap findings={findings} onSelectVenue={setSelectedVenue} />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-[var(--ink-primary)]">Findings</h2>
+              <select
+                value={venueFilter}
+                onChange={(e) => setVenueFilter(e.target.value)}
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+              >
+                <option value={ALL_VENUES}>All venues ({findings.length})</option>
+                {venueOptions.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name} ({v.count})
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="h-[420px]">
-              {selectedVenue ? (
-                <FindingsList
-                  venue={selectedVenue}
-                  findings={venueFindings}
-                  onClose={() => setSelectedVenue(null)}
-                  onSelectFinding={setSelectedFinding}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--ink-muted)]">
-                  Click a pin on the map to see findings for that venue.
-                </div>
-              )}
+            <div className="h-[480px]">
+              <FindingsList
+                title={venueFilter === ALL_VENUES ? "All findings" : venueFilter}
+                findings={filteredFindings}
+                onSelectFinding={setSelectedFinding}
+                showVenue={venueFilter === ALL_VENUES}
+              />
             </div>
           </div>
 
