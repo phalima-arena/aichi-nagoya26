@@ -9,6 +9,7 @@ export function FindingsList({
   findings,
   onClose,
   onSelectFinding,
+  onDeleteFinding,
   showVenue = false,
 }: {
   title: string;
@@ -16,6 +17,7 @@ export function FindingsList({
   findings: Finding[];
   onClose?: () => void;
   onSelectFinding: (finding: Finding) => void;
+  onDeleteFinding?: (finding: Finding) => void;
   showVenue?: boolean;
 }) {
   const sorted = [...findings].sort(
@@ -45,10 +47,10 @@ export function FindingsList({
       ) : (
         <ul className="flex-1 divide-y divide-[var(--border)] overflow-y-auto">
           {sorted.map((f) => (
-            <li key={f.id}>
+            <li key={f.id} className="flex items-stretch">
               <button
                 onClick={() => onSelectFinding(f)}
-                className="flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-black/[0.02]"
+                className="flex flex-1 flex-col gap-1 px-4 py-3 text-left hover:bg-black/[0.02]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs text-[var(--ink-muted)]">{f.finding_number}</span>
@@ -69,6 +71,19 @@ export function FindingsList({
                   {f.functional_area}
                 </span>
               </button>
+              {onDeleteFinding && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteFinding(f);
+                  }}
+                  aria-label={`Delete ${f.finding_number}`}
+                  title="Delete finding"
+                  className="px-3 text-[var(--ink-muted)] hover:text-[var(--critical)]"
+                >
+                  🗑
+                </button>
+              )}
             </li>
           ))}
         </ul>

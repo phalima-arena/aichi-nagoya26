@@ -115,40 +115,46 @@ export async function exportFindingsToExcel(findings: Finding[]) {
 
 interface LoadedImage {
   dataUrl: string;
-  format: "JPEG" | "PNG" | "WEBP";
   width: number;
   height: number;
 }
 
+// Feeding jsPDF the raw fetched bytes directly embeds the JPEG's stored pixel
+// grid as-is — jsPDF has no EXIF support, so a phone photo saved with an EXIF
+// Orientation tag (the normal case for portrait shots) comes out rotated.
+// Browsers apply that orientation when decoding into an <img>/canvas, so
+// round-tripping through a canvas here bakes the correct orientation into
+// fresh pixel data before jsPDF ever sees it.
 async function loadImage(url: string): Promise<LoadedImage | null> {
+  let objectUrl: string;
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-    const blob = await res.blob();
-
-    let format: LoadedImage["format"];
-    if (blob.type.includes("png")) format = "PNG";
-    else if (blob.type.includes("webp")) format = "WEBP";
-    else if (blob.type.includes("jpeg") || blob.type.includes("jpg")) format = "JPEG";
-    else return null;
-
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-    const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      img.onerror = reject;
-      img.src = dataUrl;
-    });
-
-    return { dataUrl, format, width, height };
+    objectUrl = URL.createObjectURL(await res.blob());
   } catch {
     return null;
+  }
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Unable to decode image"));
+      el.src = objectUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx || canvas.width === 0 || canvas.height === 0) return null;
+    ctx.drawImage(img, 0, 0);
+
+    return { dataUrl: canvas.toDataURL("image/jpeg", 0.92), width: canvas.width, height: canvas.height };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
   }
 }
 
@@ -305,7 +311,7 @@ export async function exportFindingsToPdf(findings: Finding[]) {
       const drawH = image.height * scale;
       const drawX = leftX + (leftWidth - drawW) / 2;
       const drawY = contentTop + (boxHeight - drawH) / 2;
-      doc.addImage(image.dataUrl, image.format, drawX, drawY, drawW, drawH);
+      doc.addImage(image.dataUrl, "JPEG", drawX, drawY, drawW, drawH);
     } else {
       doc.setFontSize(9);
       doc.setTextColor(140, 140, 140);

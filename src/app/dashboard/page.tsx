@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, PHOTO_BUCKET, photoStoragePath } from "@/lib/supabaseClient";
 import type { Finding, Relevance } from "@/lib/types";
 import { RELEVANCE_LEVELS } from "@/lib/types";
 import { CHART_HUES } from "@/lib/colors";
@@ -120,6 +120,24 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleDelete(finding: Finding) {
+    if (!window.confirm(`Delete finding ${finding.finding_number}? This can't be undone.`)) return;
+
+    const { error } = await supabase.from("findings").delete().eq("id", finding.id);
+    if (error) {
+      window.alert(`Failed to delete: ${error.message}`);
+      return;
+    }
+
+    if (finding.photo_url) {
+      const path = photoStoragePath(finding.photo_url);
+      if (path) await supabase.storage.from(PHOTO_BUCKET).remove([path]);
+    }
+
+    setFindings((prev) => prev.filter((f) => f.id !== finding.id));
+    setSelectedFinding((prev) => (prev?.id === finding.id ? null : prev));
+  }
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-6 bg-[var(--page)] px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -232,6 +250,7 @@ export default function DashboardPage() {
                 title={filtersActive ? "Filtered findings" : "All findings"}
                 findings={filteredFindings}
                 onSelectFinding={setSelectedFinding}
+                onDeleteFinding={handleDelete}
                 showVenue={venueFilter === ALL}
               />
             </div>
