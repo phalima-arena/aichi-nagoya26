@@ -14,8 +14,14 @@ export function FindingDetailModal({ finding, onClose }: { finding: Finding; onC
         onClick={(e) => e.stopPropagation()}
       >
         {finding.photo_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={finding.photo_url} alt="Finding" className="max-h-72 w-full object-cover sm:rounded-t-2xl" />
+          <div className="flex max-h-[60vh] items-center justify-center bg-black sm:rounded-t-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={finding.photo_url}
+              alt="Finding"
+              className="max-h-[60vh] w-full object-contain sm:rounded-t-2xl"
+            />
+          </div>
         )}
         <div className="flex flex-col gap-4 p-5">
           <div className="flex items-start justify-between gap-2">
