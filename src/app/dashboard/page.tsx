@@ -13,13 +13,17 @@ import { FindingDetailModal } from "@/components/dashboard/FindingDetailModal";
 import { exportFindingsToExcel, exportFindingsToPdf } from "@/lib/export";
 import LogoutButton from "@/components/LogoutButton";
 
-const ALL_VENUES = "__all__";
+const ALL = "__all__";
+const NOT_PROVIDED = "__not_provided__";
 
 export default function DashboardPage() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [venueFilter, setVenueFilter] = useState<string>(ALL_VENUES);
+  const [venueFilter, setVenueFilter] = useState<string>(ALL);
+  const [functionalAreaFilter, setFunctionalAreaFilter] = useState<string>(ALL);
+  const [relevanceFilter, setRelevanceFilter] = useState<string>(ALL);
+  const [observerFilter, setObserverFilter] = useState<string>(ALL);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
 
@@ -67,10 +71,44 @@ export default function DashboardPage() {
     [byVenue]
   );
 
-  const filteredFindings = useMemo(
-    () => (venueFilter === ALL_VENUES ? findings : findings.filter((f) => f.venue === venueFilter)),
-    [findings, venueFilter]
+  const functionalAreaOptions = useMemo(
+    () => [...byFunctionalArea].sort((a, b) => a.name.localeCompare(b.name)),
+    [byFunctionalArea]
   );
+
+  const observerOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const f of findings) {
+      const key = f.observer_name?.trim() || NOT_PROVIDED;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts, ([name, count]) => ({ name, count })).sort((a, b) =>
+      a.name === NOT_PROVIDED ? 1 : b.name === NOT_PROVIDED ? -1 : a.name.localeCompare(b.name)
+    );
+  }, [findings]);
+
+  const filteredFindings = useMemo(() => {
+    return findings.filter((f) => {
+      if (venueFilter !== ALL && f.venue !== venueFilter) return false;
+      if (functionalAreaFilter !== ALL && f.functional_area !== functionalAreaFilter) return false;
+      if (relevanceFilter !== ALL && f.relevance !== relevanceFilter) return false;
+      if (observerFilter !== ALL) {
+        const observer = f.observer_name?.trim() || NOT_PROVIDED;
+        if (observer !== observerFilter) return false;
+      }
+      return true;
+    });
+  }, [findings, venueFilter, functionalAreaFilter, relevanceFilter, observerFilter]);
+
+  const filtersActive =
+    venueFilter !== ALL || functionalAreaFilter !== ALL || relevanceFilter !== ALL || observerFilter !== ALL;
+
+  function clearFilters() {
+    setVenueFilter(ALL);
+    setFunctionalAreaFilter(ALL);
+    setRelevanceFilter(ALL);
+    setObserverFilter(ALL);
+  }
 
   async function handleExport(type: "excel" | "pdf") {
     setExporting(type);
@@ -128,27 +166,73 @@ export default function DashboardPage() {
           <KpiRow total={findings.length} byRelevance={byRelevance} />
 
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-[var(--ink-primary)]">Findings</h2>
-              <select
-                value={venueFilter}
-                onChange={(e) => setVenueFilter(e.target.value)}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
-              >
-                <option value={ALL_VENUES}>All venues ({findings.length})</option>
-                {venueOptions.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name} ({v.count})
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={venueFilter}
+                  onChange={(e) => setVenueFilter(e.target.value)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+                >
+                  <option value={ALL}>All venues ({findings.length})</option>
+                  {venueOptions.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      {v.name} ({v.count})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={functionalAreaFilter}
+                  onChange={(e) => setFunctionalAreaFilter(e.target.value)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+                >
+                  <option value={ALL}>All functional areas</option>
+                  {functionalAreaOptions.map((f) => (
+                    <option key={f.name} value={f.name}>
+                      {f.name} ({f.count})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={relevanceFilter}
+                  onChange={(e) => setRelevanceFilter(e.target.value)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+                >
+                  <option value={ALL}>All relevance</option>
+                  {RELEVANCE_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level} ({byRelevance[level]})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={observerFilter}
+                  onChange={(e) => setObserverFilter(e.target.value)}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+                >
+                  <option value={ALL}>All observers</option>
+                  {observerOptions.map((o) => (
+                    <option key={o.name} value={o.name}>
+                      {o.name === NOT_PROVIDED ? "Not provided" : o.name} ({o.count})
+                    </option>
+                  ))}
+                </select>
+                {filtersActive && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm font-medium text-[var(--accent)] underline underline-offset-4"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
             </div>
             <div className="h-[480px]">
               <FindingsList
-                title={venueFilter === ALL_VENUES ? "All findings" : venueFilter}
+                title={filtersActive ? "Filtered findings" : "All findings"}
                 findings={filteredFindings}
                 onSelectFinding={setSelectedFinding}
-                showVenue={venueFilter === ALL_VENUES}
+                showVenue={venueFilter === ALL}
               />
             </div>
           </div>
