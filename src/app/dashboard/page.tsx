@@ -11,6 +11,7 @@ import { CountBarChart, RelevanceBarChart } from "@/components/dashboard/Charts"
 import { FindingsList } from "@/components/dashboard/FindingsList";
 import { FindingDetailModal } from "@/components/dashboard/FindingDetailModal";
 import { exportFindingsToExcel, exportFindingsToPdf } from "@/lib/export";
+import { SORT_OPTIONS, DEFAULT_SORT, sortFindings } from "@/lib/sort";
 import LogoutButton from "@/components/LogoutButton";
 
 const ALL = "__all__";
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const [functionalAreaFilter, setFunctionalAreaFilter] = useState<string>(ALL);
   const [relevanceFilter, setRelevanceFilter] = useState<string>(ALL);
   const [observerFilter, setObserverFilter] = useState<string>(ALL);
+  const [sortValue, setSortValue] = useState<string>(DEFAULT_SORT);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
 
@@ -100,6 +102,11 @@ export default function DashboardPage() {
     });
   }, [findings, venueFilter, functionalAreaFilter, relevanceFilter, observerFilter]);
 
+  const sortedFilteredFindings = useMemo(
+    () => sortFindings(filteredFindings, sortValue),
+    [filteredFindings, sortValue]
+  );
+
   const filtersActive =
     venueFilter !== ALL || functionalAreaFilter !== ALL || relevanceFilter !== ALL || observerFilter !== ALL;
 
@@ -110,11 +117,23 @@ export default function DashboardPage() {
     setObserverFilter(ALL);
   }
 
+  function buildFilterSummary(): string | null {
+    const parts: string[] = [];
+    if (venueFilter !== ALL) parts.push(`Venue: ${venueFilter}`);
+    if (functionalAreaFilter !== ALL) parts.push(`Functional Area: ${functionalAreaFilter}`);
+    if (relevanceFilter !== ALL) parts.push(`Relevance: ${relevanceFilter}`);
+    if (observerFilter !== ALL) {
+      parts.push(`Observer: ${observerFilter === NOT_PROVIDED ? "Not provided" : observerFilter}`);
+    }
+    return parts.length > 0 ? parts.join(" · ") : null;
+  }
+
   async function handleExport(type: "excel" | "pdf") {
     setExporting(type);
     try {
-      if (type === "excel") await exportFindingsToExcel(findings);
-      else await exportFindingsToPdf(findings);
+      const summary = buildFilterSummary();
+      if (type === "excel") await exportFindingsToExcel(sortedFilteredFindings, summary);
+      else await exportFindingsToPdf(sortedFilteredFindings, summary);
     } finally {
       setExporting(null);
     }
@@ -150,17 +169,21 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleExport("excel")}
-            disabled={exporting !== null || findings.length === 0}
+            disabled={exporting !== null || sortedFilteredFindings.length === 0}
             className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--ink-primary)] disabled:opacity-50"
           >
-            {exporting === "excel" ? "Exporting…" : "Export Excel"}
+            {exporting === "excel"
+              ? "Exporting…"
+              : `Export Excel${filtersActive ? ` (${sortedFilteredFindings.length})` : ""}`}
           </button>
           <button
             onClick={() => handleExport("pdf")}
-            disabled={exporting !== null || findings.length === 0}
+            disabled={exporting !== null || sortedFilteredFindings.length === 0}
             className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--ink-primary)] disabled:opacity-50"
           >
-            {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+            {exporting === "pdf"
+              ? "Exporting…"
+              : `Export PDF${filtersActive ? ` (${sortedFilteredFindings.length})` : ""}`}
           </button>
           <Link
             href="/new"
@@ -243,12 +266,26 @@ export default function DashboardPage() {
                     Clear filters
                   </button>
                 )}
+                <label className="flex items-center gap-2 text-sm text-[var(--ink-secondary)]">
+                  Sort by
+                  <select
+                    value={sortValue}
+                    onChange={(e) => setSortValue(e.target.value)}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)]"
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
             <div className="h-[480px]">
               <FindingsList
                 title={filtersActive ? "Filtered findings" : "All findings"}
-                findings={filteredFindings}
+                findings={sortedFilteredFindings}
                 onSelectFinding={setSelectedFinding}
                 onDeleteFinding={handleDelete}
                 showVenue={venueFilter === ALL}

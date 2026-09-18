@@ -20,10 +20,6 @@ export function FindingsList({
   onDeleteFinding?: (finding: Finding) => void;
   showVenue?: boolean;
 }) {
-  const sorted = [...findings].sort(
-    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
-  );
-
   return (
     <div className="flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex items-start justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
@@ -31,7 +27,7 @@ export function FindingsList({
           {eyebrow && <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">{eyebrow}</p>}
           <h3 className="text-sm font-semibold text-[var(--ink-primary)]">{title}</h3>
           <p className="text-xs text-[var(--ink-secondary)]">
-            {sorted.length} finding{sorted.length === 1 ? "" : "s"}
+            {findings.length} finding{findings.length === 1 ? "" : "s"}
           </p>
         </div>
         {onClose && (
@@ -40,13 +36,13 @@ export function FindingsList({
           </button>
         )}
       </div>
-      {sorted.length === 0 ? (
+      {findings.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-[var(--ink-muted)]">
           No findings logged yet.
         </div>
       ) : (
         <ul className="flex-1 divide-y divide-[var(--border)] overflow-y-auto">
-          {sorted.map((f) => (
+          {findings.map((f) => (
             <li key={f.id} className="flex items-stretch">
               <button
                 onClick={() => onSelectFinding(f)}

@@ -27,7 +27,7 @@ const RELEVANCE_RGB: Record<Relevance, [number, number, number]> = {
   Low: hexToRgb(RELEVANCE_COLORS.Low),
 };
 
-export async function exportFindingsToExcel(findings: Finding[]) {
+export async function exportFindingsToExcel(findings: Finding[], filterSummary?: string | null) {
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nagoya 2026 Observation Platform";
@@ -54,6 +54,12 @@ export async function exportFindingsToExcel(findings: Finding[]) {
   const subtitleRow = sheet.addRow([`Generated ${generatedAtLabel}`]);
   sheet.mergeCells(subtitleRow.number, 1, subtitleRow.number, 8);
   subtitleRow.font = { italic: true, color: { argb: "FF52514E" } };
+
+  if (filterSummary) {
+    const filterRow = sheet.addRow([`Filters applied: ${filterSummary}`]);
+    sheet.mergeCells(filterRow.number, 1, filterRow.number, 8);
+    filterRow.font = { italic: true, color: { argb: "FF2A78D6" } };
+  }
 
   sheet.addRow([]);
 
@@ -96,6 +102,11 @@ export async function exportFindingsToExcel(findings: Finding[]) {
   const summaryTitleRow = summarySheet.addRow([REPORT_TITLE]);
   summarySheet.mergeCells(summaryTitleRow.number, 1, summaryTitleRow.number, 2);
   summaryTitleRow.font = { bold: true, size: 14 };
+  if (filterSummary) {
+    const summaryFilterRow = summarySheet.addRow([`Filters applied: ${filterSummary}`]);
+    summarySheet.mergeCells(summaryFilterRow.number, 1, summaryFilterRow.number, 2);
+    summaryFilterRow.font = { italic: true, color: { argb: "FF2A78D6" } };
+  }
   summarySheet.addRow([]);
   const summaryHeaderRow = summarySheet.addRow(["Breakdown", "Count"]);
   summaryHeaderRow.font = { bold: true };
@@ -165,7 +176,7 @@ interface JsPdfInternalExt {
   getNumberOfPages(): number;
 }
 
-export async function exportFindingsToPdf(findings: Finding[]) {
+export async function exportFindingsToPdf(findings: Finding[], filterSummary?: string | null) {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
@@ -212,12 +223,19 @@ export async function exportFindingsToPdf(findings: Finding[]) {
     MARGIN,
     27
   );
+
+  let tableStartY = 32;
+  if (filterSummary) {
+    doc.setTextColor(42, 120, 214);
+    doc.text(`Filters applied: ${filterSummary}`, MARGIN, 32);
+    tableStartY = 37;
+  }
   doc.setTextColor(11, 11, 11);
 
   const idCellPositions: ({ page: number; x: number; y: number; w: number; h: number } | undefined)[] = [];
 
   autoTable(doc, {
-    startY: 32,
+    startY: tableStartY,
     head: [["Finding ID", "Date", "Time", "Venue", "Functional Area", "Comment", "Relevance", "Observer Name"]],
     body: findings.map((f) => {
       const occurred = new Date(f.occurred_at);
