@@ -9,6 +9,7 @@ export function FindingsList({
   findings,
   onClose,
   onSelectFinding,
+  onEditFinding,
   onDeleteFinding,
   showVenue = false,
 }: {
@@ -17,6 +18,7 @@ export function FindingsList({
   findings: Finding[];
   onClose?: () => void;
   onSelectFinding: (finding: Finding) => void;
+  onEditFinding?: (finding: Finding) => void;
   onDeleteFinding?: (finding: Finding) => void;
   showVenue?: boolean;
 }) {
@@ -67,6 +69,19 @@ export function FindingsList({
                   {f.functional_area}
                 </span>
               </button>
+              {onEditFinding && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditFinding(f);
+                  }}
+                  aria-label={`Edit ${f.finding_number}`}
+                  title="Edit finding"
+                  className="px-3 text-[var(--ink-muted)] hover:text-[var(--accent)]"
+                >
+                  ✏️
+                </button>
+              )}
               {onDeleteFinding && (
                 <button
                   onClick={(e) => {

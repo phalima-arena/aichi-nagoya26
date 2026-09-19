@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase, PHOTO_BUCKET, photoStoragePath } from "@/lib/supabaseClient";
 import type { Finding, Relevance } from "@/lib/types";
 import { RELEVANCE_LEVELS } from "@/lib/types";
@@ -18,6 +19,7 @@ const ALL = "__all__";
 const NOT_PROVIDED = "__not_provided__";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +139,10 @@ export default function DashboardPage() {
     } finally {
       setExporting(null);
     }
+  }
+
+  function handleEdit(finding: Finding) {
+    router.push(`/new?id=${finding.id}`);
   }
 
   async function handleDelete(finding: Finding) {
@@ -287,6 +293,7 @@ export default function DashboardPage() {
                 title={filtersActive ? "Filtered findings" : "All findings"}
                 findings={sortedFilteredFindings}
                 onSelectFinding={setSelectedFinding}
+                onEditFinding={handleEdit}
                 onDeleteFinding={handleDelete}
                 showVenue={venueFilter === ALL}
               />

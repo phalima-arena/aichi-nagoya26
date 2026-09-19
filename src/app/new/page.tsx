@@ -1,18 +1,30 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { supabase, PHOTO_BUCKET } from "@/lib/supabaseClient";
+import { useSearchParams } from "next/navigation";
+import { supabase, PHOTO_BUCKET, photoStoragePath } from "@/lib/supabaseClient";
 import { VENUE_NAMES, getVenueCoords } from "@/lib/venues";
 import { FUNCTIONAL_AREAS } from "@/lib/functionalAreas";
-import { RELEVANCE_LEVELS, type Relevance } from "@/lib/types";
+import { RELEVANCE_LEVELS, type Finding, type Relevance } from "@/lib/types";
 import { toLocalDatetimeInputValue } from "@/lib/datetime";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
-export default function NewFindingPage() {
+function NewFindingForm() {
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("id");
+  const isEditMode = Boolean(editId);
+  const backHref = isEditMode ? "/dashboard" : "/";
+
+  const [loadingExisting, setLoadingExisting] = useState(isEditMode);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [findingNumberLabel, setFindingNumberLabel] = useState<string | null>(null);
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [initialPhotoUrl, setInitialPhotoUrl] = useState<string | null>(null);
+  const [photoRemoved, setPhotoRemoved] = useState(false);
   const [occurredAt, setOccurredAt] = useState(() => toLocalDatetimeInputValue(new Date()));
   const [venue, setVenue] = useState("");
   const [functionalArea, setFunctionalArea] = useState("");
@@ -23,11 +35,42 @@ export default function NewFindingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successNumber, setSuccessNumber] = useState<string | null>(null);
+  const [updated, setUpdated] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const sortedVenues = useMemo(() => VENUE_NAMES, []);
+
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingExisting(true);
+      const { data, error } = await supabase.from("findings").select("*").eq("id", editId).single();
+      if (cancelled) return;
+      if (error || !data) {
+        setLoadError(error?.message ?? "Finding not found.");
+        setLoadingExisting(false);
+        return;
+      }
+      const f = data as Finding;
+      setOccurredAt(toLocalDatetimeInputValue(new Date(f.occurred_at)));
+      setVenue(f.venue);
+      setFunctionalArea(f.functional_area);
+      setDescription(f.description);
+      setRelevance(f.relevance);
+      setObserverName(f.observer_name ?? "");
+      setInitialPhotoUrl(f.photo_url);
+      setFindingNumberLabel(f.finding_number);
+      setLoadingExisting(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
+
+  const displayedPhoto = photoPreview ?? (!photoRemoved ? initialPhotoUrl : null);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -39,11 +82,20 @@ export default function NewFindingPage() {
     setError(null);
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+    setPhotoRemoved(false);
+  }
+
+  function removePhoto() {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setPhotoRemoved(true);
   }
 
   function resetForm() {
     setPhotoFile(null);
     setPhotoPreview(null);
+    setInitialPhotoUrl(null);
+    setPhotoRemoved(false);
     setOccurredAt(toLocalDatetimeInputValue(new Date()));
     setVenue("");
     setFunctionalArea("");
@@ -65,7 +117,7 @@ export default function NewFindingPage() {
 
     setSubmitting(true);
     try {
-      let photoUrl: string | null = null;
+      let photoUrl: string | null = initialPhotoUrl;
 
       if (photoFile) {
         const ext = photoFile.name.split(".").pop() || "jpg";
@@ -76,34 +128,69 @@ export default function NewFindingPage() {
         if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
         const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
         photoUrl = data.publicUrl;
+
+        if (initialPhotoUrl) {
+          const oldPath = photoStoragePath(initialPhotoUrl);
+          if (oldPath) await supabase.storage.from(PHOTO_BUCKET).remove([oldPath]);
+        }
+      } else if (photoRemoved) {
+        photoUrl = null;
+        if (initialPhotoUrl) {
+          const oldPath = photoStoragePath(initialPhotoUrl);
+          if (oldPath) await supabase.storage.from(PHOTO_BUCKET).remove([oldPath]);
+        }
       }
 
       const coords = getVenueCoords(venue);
+      const payload = {
+        photo_url: photoUrl,
+        occurred_at: new Date(occurredAt).toISOString(),
+        venue,
+        functional_area: functionalArea,
+        description: description.trim(),
+        relevance,
+        observer_name: observerName.trim() || null,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+      };
 
-      const { data: inserted, error: insertError } = await supabase
-        .from("findings")
-        .insert({
-          photo_url: photoUrl,
-          occurred_at: new Date(occurredAt).toISOString(),
-          venue,
-          functional_area: functionalArea,
-          description: description.trim(),
-          relevance,
-          observer_name: observerName.trim() || null,
-          lat: coords?.lat ?? null,
-          lng: coords?.lng ?? null,
-        })
-        .select("finding_number")
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
-
-      setSuccessNumber(inserted.finding_number);
+      if (isEditMode && editId) {
+        const { error: updateError } = await supabase.from("findings").update(payload).eq("id", editId);
+        if (updateError) throw new Error(updateError.message);
+        setUpdated(true);
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from("findings")
+          .insert(payload)
+          .select("finding_number")
+          .single();
+        if (insertError) throw new Error(insertError.message);
+        setSuccessNumber(inserted.finding_number);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loadingExisting) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-[var(--page)]">
+        <p className="text-sm text-[var(--ink-muted)]">Loading finding…</p>
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[var(--page)] px-6 text-center">
+        <p className="text-sm text-[var(--critical)]">{loadError}</p>
+        <Link href="/dashboard" className="text-sm font-medium text-[var(--accent)] underline underline-offset-4">
+          Back to dashboard
+        </Link>
+      </main>
+    );
   }
 
   if (successNumber) {
@@ -135,27 +222,48 @@ export default function NewFindingPage() {
     );
   }
 
+  if (updated) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[var(--page)] px-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--good)]/15 text-3xl">
+          ✓
+        </div>
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--ink-primary)]">Finding updated</h1>
+          {findingNumberLabel && (
+            <p className="mt-1 font-mono text-lg font-semibold text-[var(--accent)]">{findingNumberLabel}</p>
+          )}
+        </div>
+        <Link
+          href="/dashboard"
+          className="w-full max-w-xs rounded-xl bg-[var(--accent)] px-4 py-3 text-center font-medium text-white"
+        >
+          Back to dashboard
+        </Link>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--page)]">
       <header className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4">
-        <Link href="/" className="text-[var(--ink-muted)]" aria-label="Back">
+        <Link href={backHref} className="text-[var(--ink-muted)]" aria-label="Back">
           ←
         </Link>
-        <h1 className="text-base font-semibold text-[var(--ink-primary)]">Add New Finding</h1>
+        <h1 className="text-base font-semibold text-[var(--ink-primary)]">
+          {isEditMode ? `Edit Finding${findingNumberLabel ? ` · ${findingNumberLabel}` : ""}` : "Add New Finding"}
+        </h1>
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-5 py-6">
         <Field label="1. Photo (optional)">
-          {photoPreview ? (
+          {displayedPhoto ? (
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoPreview} alt="Selected finding" className="w-full rounded-xl object-cover" />
+              <img src={displayedPhoto} alt="Selected finding" className="w-full rounded-xl object-cover" />
               <button
                 type="button"
-                onClick={() => {
-                  setPhotoFile(null);
-                  setPhotoPreview(null);
-                }}
+                onClick={removePhoto}
                 className="absolute right-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-xs text-white"
               >
                 Remove
@@ -290,7 +398,7 @@ export default function NewFindingPage() {
           disabled={submitting}
           className="mt-2 w-full rounded-xl bg-[var(--accent)] px-4 py-3.5 text-base font-semibold text-white disabled:opacity-50"
         >
-          {submitting ? "Submitting…" : "Submit Finding"}
+          {submitting ? "Saving…" : isEditMode ? "Save Changes" : "Submit Finding"}
         </button>
       </form>
 
@@ -310,6 +418,14 @@ export default function NewFindingPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function NewFindingPage() {
+  return (
+    <Suspense>
+      <NewFindingForm />
+    </Suspense>
   );
 }
 
