@@ -32,6 +32,7 @@ export const VENUES: Venue[] = [
   { name: "General", lat: 35.1815, lng: 136.9066 },
   { name: "Gifu Prefectural Green Stadium (Hockey)", lat: 35.4233, lng: 136.7606 },
   { name: "Hekinan Ryokuchi Beach Court (Beach Volleyball)", lat: 34.8916, lng: 136.9997 },
+  { name: "Higashi Sports Centre (Teqball)", lat: 35.1917, lng: 136.935 },
   { name: "Hotel", lat: 35.1835, lng: 136.9086 },
   { name: "IBC", lat: 35.1049, lng: 136.8825 },
   { name: "Ichinomiya City Municipal Gymnasium (Badminton)", lat: 35.3042, lng: 136.8025 },
