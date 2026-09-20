@@ -42,6 +42,7 @@ export const VENUES: Venue[] = [
   { name: "Kasugai City Gymnasium (Handball)", lat: 35.2477, lng: 136.9723 },
   { name: "Kinjo Futo Station Square Venue (Basketball)", lat: 35.115, lng: 136.885 },
   { name: "Kobe Universiade Memorial Stadium (Football)", lat: 34.6663, lng: 135.1741 },
+  { name: "Korogi Sports Park (Cricket)", lat: 35.095, lng: 137.165 },
   { name: "Kyoto Stadium (Football)", lat: 34.9807, lng: 135.7121 },
   { name: "Live Sites", lat: 35.1704, lng: 136.9078 },
   { name: "Long Beach (Surfing)", lat: 34.648, lng: 137.278 },
