@@ -130,6 +130,16 @@ interface LoadedImage {
   height: number;
 }
 
+// A phone photo straight off the camera is routinely 3000-4000px on a side
+// (several MB as a JPEG); the detail page only ever displays it inside a
+// ~125x150mm box, so embedding it at full resolution just inflates the PDF
+// (100MB+ across a few dozen findings) without adding anything visible.
+// Downscaling the canvas before export keeps the on-page size identical
+// (that's set separately by the mm-based draw box) while shrinking the
+// underlying pixel grid to what that box can actually show.
+const MAX_IMAGE_DIMENSION = 1200;
+const JPEG_QUALITY = 0.78;
+
 // Feeding jsPDF the raw fetched bytes directly embeds the JPEG's stored pixel
 // grid as-is — jsPDF has no EXIF support, so a phone photo saved with an EXIF
 // Orientation tag (the normal case for portrait shots) comes out rotated.
@@ -154,14 +164,15 @@ async function loadImage(url: string): Promise<LoadedImage | null> {
       el.src = objectUrl;
     });
 
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
     const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx || canvas.width === 0 || canvas.height === 0) return null;
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    return { dataUrl: canvas.toDataURL("image/jpeg", 0.92), width: canvas.width, height: canvas.height };
+    return { dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY), width: canvas.width, height: canvas.height };
   } catch {
     return null;
   } finally {
